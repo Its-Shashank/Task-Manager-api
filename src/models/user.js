@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const validator = require('validator')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const Task = require('./task')
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -46,7 +47,12 @@ const userSchema = new mongoose.Schema({
       type: String,
       required: true
     }
-  }]
+  }],
+  avatar: {
+    type: Buffer
+  }
+}, {
+  timestamps: true
 })
 
 // Not actually data stored in database but a relationship b/w two entities.
@@ -65,6 +71,7 @@ userSchema.methods.toJSON = function () {
 
   delete userObject.password
   delete userObject.tokens
+  delete userObject.avatar
 
   return userObject
 }
@@ -74,7 +81,7 @@ userSchema.methods.toJSON = function () {
 userSchema.methods.generateAuthToken = async function() {
   const user = this
   // define a payload which is _id
-  const token = jwt.sign({ _id: user._id.toString() }, 'thisismynewcourse')
+  const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET)
 
   user.tokens = user.tokens.concat({ token })
   await user.save()
@@ -116,6 +123,13 @@ userSchema.pre('save', async function (next) {
 
   // after updating we saw that that some mongoose operations bypass middlewares. When we update username, message does not prints.
   // In order to change this we need to change something in user update route.
+  next()
+})
+
+// Delete user tasks when user is deleted.
+userSchema.pre('remove', async function (next) {
+  const user = this
+  await Task.deleteMany({ owner: user._id })
   next()
 })
 
